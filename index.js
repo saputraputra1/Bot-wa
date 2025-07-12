@@ -1,6 +1,7 @@
 // === WhatsApp Bot Siap Jalan di Pterodactyl ===
 // Menggunakan Baileys + Pairing Code
 
+
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -12,10 +13,23 @@ const { Boom } = require('@hapi/boom');
 const fs = require('fs');
 const pino = require('pino');
 const path = require('path');
+const readline = require('readline');
 
-// === Handler Otomatis
+// Handler Otomatis
 const handleGroup = require('./handler/group');
 const messageFilter = require('./handler/messageFilter');
+
+// Fungsi input terminal
+const promptInput = (question) => new Promise((resolve) => {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  rl.question(question, (answer) => {
+    rl.close();
+    resolve(answer.trim());
+  });
+});
 
 const startBot = async () => {
   const { state, saveCreds } = await useMultiFileAuthState('auth');
@@ -32,34 +46,49 @@ const startBot = async () => {
     browser: ['Bot WhatsApp', 'Chrome', '110.0']
   });
 
-  sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect, pairingCode } = update;
+  sock.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect } = update;
+    const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
+
     if (connection === 'close') {
-      if ((lastDisconnect.error = new Boom(lastDisconnect.error))?.output?.statusCode !== DisconnectReason.loggedOut) {
+      if (reason !== DisconnectReason.loggedOut) {
+        console.log('⚠️ Koneksi terputus, mencoba ulang...');
         startBot();
+      } else {
+        console.log('🚪 Terlogout. Hapus folder "auth" untuk pairing ulang.');
       }
-    } else if (connection === 'open') {
-      console.log('✅ Bot siap digunakan!');
-    } else if (pairingCode) {
-      console.log('🔗 Kode Pairing (scan di WA Web via kode):', pairingCode);
+    }
+
+    if (connection === 'connecting') {
+      try {
+        const number = await promptInput('📲 Masukkan nomor Anda (format internasional, contoh: 628xxxx): ');
+        const pairingCode = await sock.requestPairingCode(number);
+        console.log('\n✅ Kode Pairing Anda:\n🔗', pairingCode, '\nSilakan buka https://web.whatsapp.com dan masukkan kode di sana.');
+      } catch (err) {
+        console.error('❌ Gagal mendapatkan pairing code:', err.message || err);
+      }
+    }
+
+    if (connection === 'open') {
+      console.log('✅ Bot berhasil tersambung dan siap digunakan!');
     }
   });
 
   sock.ev.on('creds.update', saveCreds);
 
-  // === Event Welcome / Leave Otomatis
+  // Welcome / Leave
   sock.ev.on('group-participants.update', async update => {
     await handleGroup(sock, update);
   });
 
-  // === Filter Otomatis (anti-link, virtex, warning)
+  // Filter Otomatis
   sock.ev.on('messages.upsert', async ({ messages }) => {
     const msg = messages[0];
     if (!msg.message || msg.key?.fromMe) return;
     await messageFilter(sock, msg);
   });
 
-  // === Perintah Command Modular
+  // Modular Command
   sock.ev.on('messages.upsert', async ({ messages }) => {
     const msg = messages[0];
     if (!msg.message || msg.key.fromMe) return;
@@ -71,7 +100,6 @@ const startBot = async () => {
     const command = body.startsWith('.') ? body.split(' ')[0].slice(1).toLowerCase() : '';
     const args = body.split(' ').slice(1);
 
-    // === LOAD COMMAND HANDLERS ===
     const commandsPath = path.join(__dirname, 'commands');
     if (fs.existsSync(commandsPath)) {
       const files = fs.readdirSync(commandsPath);
