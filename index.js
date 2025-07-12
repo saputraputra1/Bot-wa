@@ -1,11 +1,21 @@
 // === WhatsApp Bot Siap Jalan di Pterodactyl ===
 // Menggunakan Baileys + Pairing Code
 
-const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, DisconnectReason } = require('@whiskeysockets/baileys');
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  fetchLatestBaileysVersion,
+  makeCacheableSignalKeyStore,
+  DisconnectReason
+} = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const fs = require('fs');
 const pino = require('pino');
 const path = require('path');
+
+// === Handler Otomatis
+const handleGroup = require('./handler/group');
+const messageFilter = require('./handler/messageFilter');
 
 const startBot = async () => {
   const { state, saveCreds } = await useMultiFileAuthState('auth');
@@ -37,6 +47,19 @@ const startBot = async () => {
 
   sock.ev.on('creds.update', saveCreds);
 
+  // === Event Welcome / Leave Otomatis
+  sock.ev.on('group-participants.update', async update => {
+    await handleGroup(sock, update);
+  });
+
+  // === Filter Otomatis (anti-link, virtex, warning)
+  sock.ev.on('messages.upsert', async ({ messages }) => {
+    const msg = messages[0];
+    if (!msg.message || msg.key?.fromMe) return;
+    await messageFilter(sock, msg);
+  });
+
+  // === Perintah Command Modular
   sock.ev.on('messages.upsert', async ({ messages }) => {
     const msg = messages[0];
     if (!msg.message || msg.key.fromMe) return;
@@ -44,7 +67,7 @@ const startBot = async () => {
     const from = msg.key.remoteJid;
     const body = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
     const sender = msg.key.participant || msg.key.remoteJid;
-    
+
     const command = body.startsWith('.') ? body.split(' ')[0].slice(1).toLowerCase() : '';
     const args = body.split(' ').slice(1);
 
