@@ -1,7 +1,6 @@
 // === WhatsApp Bot Siap Jalan di Pterodactyl ===
 // Menggunakan Baileys + Pairing Code
 
-
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -13,23 +12,13 @@ const { Boom } = require('@hapi/boom');
 const fs = require('fs');
 const pino = require('pino');
 const path = require('path');
-const readline = require('readline');
 
 // Handler Otomatis
 const handleGroup = require('./handler/group');
 const messageFilter = require('./handler/messageFilter');
 
-// Fungsi input terminal
-const promptInput = (question) => new Promise((resolve) => {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-  rl.question(question, (answer) => {
-    rl.close();
-    resolve(answer.trim());
-  });
-});
+// Nomor Bot (tanpa input manual)
+const BOT_NUMBER = '62895335107865';
 
 const startBot = async () => {
   const { state, saveCreds } = await useMultiFileAuthState('auth');
@@ -47,7 +36,7 @@ const startBot = async () => {
   });
 
   sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect } = update;
+    const { connection, lastDisconnect, isNewLogin } = update;
     const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
 
     if (connection === 'close') {
@@ -59,11 +48,10 @@ const startBot = async () => {
       }
     }
 
-    if (connection === 'connecting') {
+    if (connection === 'connecting' && isNewLogin) {
       try {
-        const number = await promptInput('📲 Masukkan nomor Anda (format internasional, contoh: 628xxxx): ');
-        const pairingCode = await sock.requestPairingCode(number);
-        console.log('\n✅ Kode Pairing Anda:\n🔗', pairingCode, '\nSilakan buka https://web.whatsapp.com dan masukkan kode di sana.');
+        const pairingCode = await sock.requestPairingCode(BOT_NUMBER);
+        console.log('\n✅ Kode Pairing Anda:\n🔗', pairingCode, '\nSilakan buka https://web.whatsapp.com dan masukkan kode tersebut.');
       } catch (err) {
         console.error('❌ Gagal mendapatkan pairing code:', err.message || err);
       }
@@ -106,7 +94,11 @@ const startBot = async () => {
       for (const file of files) {
         const cmd = require(`./commands/${file}`);
         if (cmd.command === command) {
-          await cmd.execute(sock, msg, args);
+          try {
+            await cmd.execute(sock, msg, args);
+          } catch (err) {
+            console.error(`❌ Error pada command .${command}:`, err.message);
+          }
         }
       }
     }
