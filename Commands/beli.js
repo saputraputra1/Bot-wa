@@ -15,6 +15,7 @@ module.exports = {
     if (!item) return sock.sendMessage(from, { text: '❌ Barang tidak ditemukan atau sudah terjual' }, { quoted: msg });
 
     item.sold = true;
+    item.buyer = buyer; // ✅ Tambahan disini
     saveData(db);
 
     await sock.sendMessage(from, {
