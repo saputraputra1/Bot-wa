@@ -1,6 +1,29 @@
-"dependencies": {
-  "ytdl-core": "^4.11.2",
-  "@whiskeysockets/baileys": "^6.7.1",
-  "axios": "^1.6.2",
-  "pino": "^8.14.1"
+{
+  "name": "whatsapp-bot",
+  "version": "1.0.0",
+  "description": "Bot WhatsApp Siap Pakai dengan Pairing Code dan Modular Command",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.1",
+    "axios": "^1.6.8",
+    "cheerio": "^1.0.0-rc.12",
+    "ffmpeg-static": "^5.1.0",
+    "form-data": "^4.0.0",
+    "node-fetch": "^2.6.7",
+    "pino": "^8.17.0",
+    "webp-converter": "^2.2.3"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "baileys",
+    "downloader",
+    "whatsapp-bot"
+  ],
+  "author": "BotDev",
+  "license": "MIT"
 }
