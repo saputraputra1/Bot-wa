@@ -1,5 +1,4 @@
-// === WhatsApp Bot Siap Jalan di Pterodactyl ===
-// Menggunakan Baileys + Pairing Code
+// === WhatsApp Bot Siap Jalan di Pterodactyl + Argumen Pairing ===
 
 const {
   default: makeWASocket,
@@ -10,17 +9,28 @@ const {
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const fs = require('fs');
+const fsx = require('fs-extra');
 const pino = require('pino');
 const path = require('path');
 
-// Handler Otomatis
+// Handler
 const handleGroup = require('./handler/group');
 const messageFilter = require('./handler/messageFilter');
 
-// Nomor Bot (tanpa input manual)
-const BOT_NUMBER = '62895335107865';
+// Ambil nomor pairing dari argumen (misal: --pair=628xxxx)
+const argv = process.argv.find(arg => arg.startsWith('--pair='));
+const pairNumber = argv ? argv.split('=')[1] : null;
+
+// Nomor Default kalau tidak pakai argumen
+const BOT_NUMBER = pairNumber || '62895335107865';
 
 const startBot = async () => {
+  const authPath = './auth/creds.json';
+  if (!fsx.existsSync(authPath)) {
+    console.log('📦 Tidak ada sesi, menghapus folder auth untuk pairing ulang...');
+    fsx.removeSync('./auth');
+  }
+
   const { state, saveCreds } = await useMultiFileAuthState('auth');
   const { version } = await fetchLatestBaileysVersion();
 
@@ -51,7 +61,8 @@ const startBot = async () => {
     if (connection === 'connecting' && isNewLogin) {
       try {
         const pairingCode = await sock.requestPairingCode(BOT_NUMBER);
-        console.log('\n✅ Kode Pairing Anda:\n🔗', pairingCode, '\nSilakan buka https://web.whatsapp.com dan masukkan kode tersebut.');
+        console.log('\n✅ Kode Pairing Anda:\n🔗', pairingCode);
+        console.log('🔄 Buka https://web.whatsapp.com dan masukkan kode tersebut.\n');
       } catch (err) {
         console.error('❌ Gagal mendapatkan pairing code:', err.message || err);
       }
@@ -69,14 +80,14 @@ const startBot = async () => {
     await handleGroup(sock, update);
   });
 
-  // Filter Otomatis
+  // Filter
   sock.ev.on('messages.upsert', async ({ messages }) => {
     const msg = messages[0];
     if (!msg.message || msg.key?.fromMe) return;
     await messageFilter(sock, msg);
   });
 
-  // Modular Command
+  // Modular Commands
   sock.ev.on('messages.upsert', async ({ messages }) => {
     const msg = messages[0];
     if (!msg.message || msg.key.fromMe) return;
